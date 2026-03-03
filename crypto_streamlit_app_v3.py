@@ -367,27 +367,51 @@ def plot_equity(results, config, show_bh=False):
 
 def plot_dashboard(results):
     symbols = list(results.keys())
-    fig = make_subplots(rows=2, cols=3, subplot_titles=('Win Rate %', 'Max DD %', 'Sharpe', 'Direction', 'Table', ''))
     
-    wr = [results[s].get('metrics',{}).get('wr',0) for s in symbols]
-    fig.add_trace(go.Bar(x=symbols, y=wr, marker_color=['#3498db','#2ecc71','#e74c3c','#9b59b6'][:len(symbols)]), row=1, col=1)
-    fig.add_hline(y=50, line_dash="dot", line_color="red", row=1, col=1)
+    # Use separate charts instead of subplots for better compatibility
+    col1, col2 = st.columns(2)
     
-    dd = [results[s].get('metrics',{}).get('dd',0) for s in symbols]
-    fig.add_trace(go.Bar(x=symbols, y=dd, marker_color='indianred'), row=1, col=2)
+    with col1:
+        # Win Rate
+        wr = [results[s].get('metrics',{}).get('wr',0) for s in symbols]
+        fig_wr = go.Figure(data=[go.Bar(x=symbols, y=wr, marker_color=['#3498db','#2ecc71','#e74c3c','#9b59b6'][:len(symbols)])])
+        fig_wr.add_hline(y=50, line_dash="dot", line_color="red")
+        fig_wr.update_layout(title="Win Rate %", template="plotly_dark")
+        st.plotly_chart(fig_wr, use_container_width=True)
+        
+        # Max DD
+        dd = [results[s].get('metrics',{}).get('dd',0) for s in symbols]
+        fig_dd = go.Figure(data=[go.Bar(x=symbols, y=dd, marker_color='indianred')])
+        fig_dd.update_layout(title="Max Drawdown %", template="plotly_dark")
+        st.plotly_chart(fig_dd, use_container_width=True)
+        
+        # Sharpe
+        sharpe = [results[s].get('metrics',{}).get('sharpe',0) for s in symbols]
+        fig_sharpe = go.Figure(data=[go.Bar(x=symbols, y=sharpe, marker_color='mediumpurple')])
+        fig_sharpe.update_layout(title="Sharpe Ratio", template="plotly_dark")
+        st.plotly_chart(fig_sharpe, use_container_width=True)
     
-    sharpe = [results[s].get('metrics',{}).get('sharpe',0) for s in symbols]
-    fig.add_trace(go.Bar(x=symbols, y=sharpe, marker_color='mediumpurple'), row=1, col=3)
-    
-    longs = sum(results[s].get('metrics',{}).get('longs',0) for s in symbols)
-    shorts = sum(results[s].get('metrics',{}).get('shorts',0) for s in symbols)
-    fig.add_trace(go.Pie(labels=['Longs', 'Shorts'], values=[longs, shorts], marker_colors=['#2ecc71', '#e74c3c'], hole=0.4), row=2, col=1)
-    
-    table_data = [[s, results[s].get('metrics',{}).get('trades',0), f"{results[s].get('metrics',{}).get('wr',0):.1f}%", f"{results[s].get('metrics',{}).get('sharpe',0):.2f}", f"${results[s].get('metrics',{}).get('final',0):,.0f}"] for s in symbols]
-    fig.add_trace(go.Table(header=dict(values=['Symbol','Trades','WR%','Sharpe','Final$'], fill_color='royalblue'), cells=dict(values=list(zip(*table_data)), fill_color='lavender')), row=2, col=2)
-    
-    fig.update_layout(height=600, title_text="Dashboard", template="plotly_dark")
-    return fig
+    with col2:
+        # Pie chart
+        longs = sum(results[s].get('metrics',{}).get('longs',0) for s in symbols)
+        shorts = sum(results[s].get('metrics',{}).get('shorts',0) for s in symbols)
+        if longs + shorts > 0:
+            fig_pie = go.Figure(data=[go.Pie(labels=['Longs', 'Shorts'], values=[longs, shorts], 
+                                             marker_colors=['#2ecc71', '#e74c3c'], hole=0.4)])
+            fig_pie.update_layout(title="Trade Direction", template="plotly_dark")
+            st.plotly_chart(fig_pie, use_container_width=True)
+        
+        # Table
+        table_data = [[s, results[s].get('metrics',{}).get('trades',0), 
+                      f"{results[s].get('metrics',{}).get('wr',0):.1f}%",
+                      f"{results[s].get('metrics',{}).get('sharpe',0):.2f}",
+                      f"${results[s].get('metrics',{}).get('final',0):,.0f}"] for s in symbols]
+        fig_table = go.Figure(data=[go.Table(
+            header=dict(values=['Symbol','Trades','WR%','Sharpe','Final$'], fill_color='royalblue'),
+            cells=dict(values=list(zip(*table_data)), fill_color='lavender')
+        )])
+        fig_table.update_layout(title="Performance", template="plotly_dark", height=300)
+        st.plotly_chart(fig_table, use_container_width=True)
 
 def plot_flowchart(config):
     import graphviz
@@ -510,8 +534,8 @@ def main():
             st.download_button("📥 Download CSV", csv, "metrics.csv", "text/csv")
         
         with tab2:
-            fig = plot_dashboard(results)
-            st.plotly_chart(fig, use_container_width=True)
+            plot_dashboard(results)
+            # Also show metrics table
             rows = [{'Symbol': s, 'Trades': d['metrics']['trades'], 'WR%': f"{d['metrics']['wr']:.1f}", 
                      'PF': f"{d['metrics']['pf']:.2f}", 'DD%': f"{d['metrics']['dd']:.1f}",
                      'Sharpe': f"{d['metrics']['sharpe']:.2f}", 'Sortino': f"{d['metrics']['sortino']:.2f}",
