@@ -501,9 +501,13 @@ def main():
         with tab1:
             fig = plot_equity(results, config, show_bh)
             st.plotly_chart(fig, use_container_width=True)
-            buf = BytesIO()
-            fig.write_image(buf, format='png', width=1200, height=600)
-            st.download_button("📥 Download", buf.getvalue(), "equity.png", "image/png")
+            
+            # CSV download only (image download requires kaleido)
+            csv = pd.DataFrame([{'Symbol': s, 'Trades': d['metrics']['trades'], 'WR%': f"{d['metrics']['wr']:.1f}", 
+                     'PF': f"{d['metrics']['pf']:.2f}", 'DD%': f"{d['metrics']['dd']:.1f}",
+                     'Sharpe': f"{d['metrics']['sharpe']:.2f}", 'Final$': f"${d['metrics']['final']:,.0f}"} 
+                    for s, d in results.items()]).to_csv(index=False)
+            st.download_button("📥 Download CSV", csv, "metrics.csv", "text/csv")
         
         with tab2:
             fig = plot_dashboard(results)
