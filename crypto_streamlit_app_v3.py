@@ -482,8 +482,11 @@ def main():
             st.session_state.best_params = None
             st.rerun()
     
+    # Display results
     if st.session_state.results or st.session_state.optimized_results:
         st.markdown("---")
+        
+        # Comparison (if both exist)
         if st.session_state.results and st.session_state.optimized_results:
             st.subheader("Before vs After")
             col1, col2, col3 = st.columns(3)
@@ -496,16 +499,29 @@ def main():
                 with st.expander("Best Parameters"):
                     st.json(st.session_state.best_params)
         
+        # Single result display
+        elif st.session_state.results:
+            st.subheader("Backtest Results")
+            plot_dashboard(st.session_state.results)
+        
         tab1, tab2, tab3 = st.tabs(["Dashboard", "Trades", "Warnings"])
         with tab1:
-            if st.session_state.optimized_results: plot_dashboard(st.session_state.optimized_results)
+            if st.session_state.optimized_results: 
+                plot_dashboard(st.session_state.optimized_results)
+            elif st.session_state.results:
+                plot_dashboard(st.session_state.results)
         with tab2:
             all_trades = []
-            for symbol, data in st.session_state.optimized_results.items():
-                for t in data.get('trades', []):
-                    t['symbol'] = symbol
-                    all_trades.append(t)
-            if all_trades: st.dataframe(pd.DataFrame(all_trades), use_container_width=True)
+            results_to_show = st.session_state.optimized_results or st.session_state.results
+            if results_to_show:
+                for symbol, data in results_to_show.items():
+                    for t in data.get('trades', []):
+                        t['symbol'] = symbol
+                        all_trades.append(t)
+            if all_trades: 
+                st.dataframe(pd.DataFrame(all_trades), use_container_width=True)
+            else:
+                st.info("No trades yet")
         with tab3:
             st.warning("""
             ### Overfitting Warnings
