@@ -401,34 +401,63 @@ def main():
                                       index=0, format_func=lambda x: {'sharpe': 'Sharpe Ratio', 'cagr': 'CAGR %', 'pf': 'Profit Factor', 'wr': 'Win Rate'}[x])
         train_test_split = st.slider("Train/Test Split %", 50, 90, 70)
         
-        if st.button("Run Auto-Optimize", type="primary"):
+        # Button to run optimization + backtest
+        if st.button("🎯 Run Auto-Optimize", type="primary"):
             if not symbols: st.error("Select at least one symbol")
             else:
-                with st.spinner(f"Optimizing {symbols[0]}..."):
+                with st.spinner("Optimizing parameters..."):
                     df, status = load_data(symbols[0], int(years*365), use_api, market_type)
                     if df is not None and len(df) > 200:
                         split_idx = int(len(df) * train_test_split / 100)
                         df_train = df.iloc[:split_idx].copy()
                         df_test = df.iloc[split_idx:].copy()
-                        base_config = {'capital': capital, 'fee': 0.001, 'risk_pct': 0.02, 'rsi_oversold': rsi_oversold, 'rsi_overbought': rsi_overbought, 'short_rsi_overbought': short_rsi_ob, 'target_mr': target_mr, 'stop_mr': stop_mr, 'target_tf': target_tf, 'stop_tf': stop_tf, 'max_hold_hours': 8, 'max_position_pct': 0.30, 'bear_short_bias': bear_short_bias}
+                        
+                        base_config = {'capital': capital, 'fee': 0.001, 'risk_pct': 0.02, 
+                                      'rsi_oversold': rsi_oversold, 'rsi_overbought': rsi_overbought, 
+                                      'short_rsi_overbought': short_rsi_ob, 'target_mr': target_mr, 
+                                      'stop_mr': stop_mr, 'target_tf': target_tf, 'stop_tf': stop_tf, 
+                                      'max_hold_hours': 8, 'max_position_pct': 0.30, 
+                                      'bear_short_bias': bear_short_bias}
+                        
+                        # Baseline
                         result_base = run_backtest(df, base_config)
                         metrics_base = calculate_metrics(result_base, base_config)
-                        # Use simplified grid search
+                        
+                        # Optimize
                         best_params, score = optimize_grid_search(df_train, df_test, base_config, optimize_metric)
+                        
                         if best_params:
                             opt_config = {**base_config, **best_params}
                             result_opt = run_backtest(df, opt_config)
                             metrics_opt = calculate_metrics(result_opt, opt_config)
+                            
                             st.session_state.best_params = best_params
-                            st.session_state.results = {'BTC': {'equity': result_base['equity'], 'metrics': metrics_base, 'df': df}}
-                            st.session_state.optimized_results = {'BTC': {'equity': result_opt['equity'], 'metrics': metrics_opt, 'df': df}}
-                            st.success(f"Optimized! {optimize_metric.upper()}: {score:.3f}")
+                            st.session_state.results = {symbols[0]: {'equity': result_base['equity'], 'metrics': metrics_base, 'df': df}}
+                            st.session_state.optimized_results = {symbols[0]: {'equity': result_opt['equity'], 'metrics': metrics_opt, 'df': df}}
+                            st.success(f"✅ Optimized! Score: {score:.3f}")
                         else: 
                             st.error("Optimization failed")
-                    else: st.error("Not enough data")
+                    else: 
+                        st.error("Not enough data")
         
+        # Simple backtest button (no optimization)
+        if st.button("▶️ Run Backtest (Default Params)"):
+            if not symbols: st.error("Select at least one symbol")
+            else:
+                with st.spinner("Running backtest..."):
+                    df, status = load_data(symbols[0], int(years*365), use_api, market_type)
+                    if df is not None and len(df) > 100:
+                        result = run_backtest(df, config)
+                        metrics = calculate_metrics(result, config)
+                        st.session_state.results = {symbols[0]: {'equity': result['equity'], 'metrics': metrics, 'df': df}}
+                        st.session_state.optimized_results = None
+                        st.success(f"✓ {metrics['trades']} trades | WR: {metrics['wr']:.1f}% | Sharpe: {metrics['sharpe']:.2f}")
+                    else:
+                        st.error("Not enough data")
+        
+        # Show best params if available
         if st.session_state.best_params:
-            st.success(f"Optimized: RSI {st.session_state.best_params.get('rsi_oversold')}/{st.session_state.best_params.get('rsi_overbought')}")
+            st.success(f"Best: RSI {st.session_state.best_params.get('rsi_oversold')}/{st.session_state.best_params.get('rsi_overbought')}")
             if st.button("Apply"):
                 rsi_oversold = st.session_state.best_params.get('rsi_oversold', rsi_oversold)
                 rsi_overbought = st.session_state.best_params.get('rsi_overbought', rsi_overbought)
