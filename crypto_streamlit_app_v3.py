@@ -340,28 +340,28 @@ def plot_comparison(results_before, results_after, config):
     fig.update_layout(title="Before vs After Optimization", template="plotly_dark", height=400)
     return fig
 
-def plot_dashboard(results):
+def plot_dashboard(results, chart_key=1):
     symbols = list(results.keys())
     col1, col2 = st.columns(2)
     with col1:
         wr = [results[s].get('metrics',{}).get('wr',0) for s in symbols]
         fig = go.Figure(go.Bar(x=symbols, y=wr, marker_color='#3498db', text=[f"{w:.1f}%" for w in wr], textposition='outside'))
         fig.update_layout(title="Win Rate %", template="plotly_dark", height=250)
-        st.plotly_chart(fig, use_container_width=True, key="chart_wr")
+        st.plotly_chart(fig, use_container_width=True, key=f"wr_{chart_key}")
         cagr = [results[s].get('metrics',{}).get('cagr',0) for s in symbols]
         colors = ['#2ecc71' if c > 0 else '#e74c3c' for c in cagr]
         fig = go.Figure(go.Bar(x=symbols, y=cagr, marker_color=colors))
         fig.update_layout(title="CAGR %", template="plotly_dark", height=250)
-        st.plotly_chart(fig, use_container_width=True, key="chart_cagr")
+        st.plotly_chart(fig, use_container_width=True, key=f"cagr_{chart_key}")
     with col2:
         sharpe = [results[s].get('metrics',{}).get('sharpe',0) for s in symbols]
         fig = go.Figure(go.Bar(x=symbols, y=sharpe, marker_color='mediumpurple'))
         fig.update_layout(title="Sharpe Ratio", template="plotly_dark", height=250)
-        st.plotly_chart(fig, use_container_width=True, key="chart_sharpe")
+        st.plotly_chart(fig, use_container_width=True, key=f"sharpe_{chart_key}")
         final = [results[s].get('metrics',{}).get('final',0) for s in symbols]
         fig = go.Figure(go.Bar(x=symbols, y=final, marker_color='#f39c12'))
         fig.update_layout(title="Final Equity ($)", template="plotly_dark", height=250)
-        st.plotly_chart(fig, use_container_width=True, key="chart_final")
+        st.plotly_chart(fig, use_container_width=True, key=f"final_{chart_key}")
     st.subheader("Metrics")
     rows = [{'Symbol': s, 'Trades': d['metrics']['trades'], 'WR%': f"{d['metrics']['wr']:.1f}", 'PF': f"{d['metrics']['pf']:.2f}", 'Sharpe': f"{d['metrics']['sharpe']:.2f}", 'CAGR%': f"{d['metrics']['cagr']:.1f}", 'Final$': f"${d['metrics']['final']:,.0f}"} for s, d in results.items()]
     st.dataframe(pd.DataFrame(rows), use_container_width=True)
@@ -502,14 +502,14 @@ def main():
         # Single result display
         elif st.session_state.results:
             st.subheader("Backtest Results")
-            plot_dashboard(st.session_state.results)
+            plot_dashboard(st.session_state.results, chart_key="default")
         
         tab1, tab2, tab3 = st.tabs(["Dashboard", "Trades", "Warnings"])
         with tab1:
             if st.session_state.optimized_results: 
-                plot_dashboard(st.session_state.optimized_results)
+                plot_dashboard(st.session_state.optimized_results, chart_key="opt")
             elif st.session_state.results:
-                plot_dashboard(st.session_state.results)
+                plot_dashboard(st.session_state.results, chart_key="tab")
         with tab2:
             all_trades = []
             results_to_show = st.session_state.optimized_results or st.session_state.results
