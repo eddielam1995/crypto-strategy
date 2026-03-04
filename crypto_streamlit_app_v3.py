@@ -241,65 +241,92 @@ def calculate_metrics(result, config):
 def empty_metrics(config):
     return {'trades': 0, 'wr': 0, 'pf': 0, 'dd': 0, 'sharpe': 0, 'sortino': 0, 'calmar': 0, 'cagr': 0, 'final': config['capital'], 'longs': 0, 'shorts': 0}
 
-def optimize_with_optuna(df_train, df_test, base_config, n_trials=50, optimize_metric='sharpe'):
-    if not OPTUNA_AVAILABLE: return None, "Optuna not installed"
+def optimize_with_optuna(df_train, df_test, base_config, n_trials=30, optimize_metric='sharpe'):
+    """Optuna optimization - simplified"""
+    if not OPTUNA_AVAILABLE: 
+        return None, "Optuna not installed"
     
     def objective(trial):
         params = {
             'rsi_oversold': trial.suggest_int('rsi_oversold', 20, 45),
             'rsi_overbought': trial.suggest_int('rsi_overbought', 55, 80),
             'short_rsi_overbought': trial.suggest_int('short_rsi_overbought', 40, 65),
-            'target_mr': trial.suggest_float('target_mr', 0.01, 0.06, step=0.005),
-            'stop_mr': trial.suggest_float('stop_mr', 0.005, 0.03, step=0.005),
-            'target_tf': trial.suggest_float('target_tf', 0.02, 0.08, step=0.01),
-            'stop_tf': trial.suggest_float('stop_tf', 0.01, 0.04, step=0.005),
+            'target_mr': trial.suggest_float('target_mr', 0.02, 0.05, step=0.01),
+            'stop_mr': trial.suggest_float('stop_mr', 0.01, 0.03, step=0.005),
+            'target_tf': trial.suggest_float('target_tf', 0.03, 0.08, step=0.01),
+            'stop_tf': trial.suggest_float('stop_tf', 0.015, 0.04, step=0.005),
         }
+        
         cfg = {**base_config, **params}
+        
+        # Train on training set
         result_train = run_backtest(df_train, cfg)
         metrics_train = calculate_metrics(result_train, cfg)
+        
+        # Validate on test set
         result_test = run_backtest(df_test, cfg)
         metrics_test = calculate_metrics(result_test, cfg)
+        
         train_score = metrics_train.get(optimize_metric, 0)
         test_score = metrics_test.get(optimize_metric, 0)
-        overfit_penalty = abs(train_score - test_score) * 0.5
-        return train_score - overfit_penalty
+        
+        # Penalize overfitting
+        score = train_score - abs(train_score - test_score) * 0.5
+        
+        return score
     
-    study = optuna.create_study(direction='maximize')
-    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
-    return study.best_params, study.best_value
+    try:
+        study = optuna.create_study(direction='maximize')
+        study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+        return study.best_params, study.best_value
+    except Exception as e:
+        return None, str(e)
 
 def optimize_grid_search(df_train, df_test, base_config, optimize_metric='sharpe'):
+    """Simplified grid search without progress bar"""
     best_score = -999
     best_params = {}
-    rsi_os_range = [20, 25, 30, 35, 40, 45]
-    rsi_ob_range = [55, 60, 65, 70, 75, 80]
-    short_ob_range = [40, 45, 50, 55, 60]
-    target_mr_range = [0.02, 0.03, 0.04, 0.05]
     
-    progress = st.progress(0)
+    # Smaller grid for faster execution
+    rsi_os_range = [20, 30, 40]
+    rsi_ob_range = [55, 65, 75]
+    short_ob_range = [40, 50, 60]
+    
     total = len(rsi_os_range) * len(rsi_ob_range) * len(short_ob_range)
     count = 0
     
     for rsi_os in rsi_os_range:
         for rsi_ob in rsi_ob_range:
             for short_ob in short_ob_range:
-                for tgt in target_mr_range:
-                    count += 1
-                    if count % 20 == 0: progress.progress(min(count/total, 0.99))
-                    params = {'rsi_oversold': rsi_os, 'rsi_overbought': rsi_ob, 'short_rsi_overbought': short_ob, 'target_mr': tgt, 'stop_mr': tgt * 0.5, 'target_tf': tgt * 1.5, 'stop_tf': tgt * 0.75}
-                    cfg = {**base_config, **params}
-                    result_train = run_backtest(df_train, cfg)
-                    metrics_train = calculate_metrics(result_train, cfg)
-                    result_test = run_backtest(df_test, cfg)
-                    metrics_test = calculate_metrics(result_test, cfg)
-                    train_score = metrics_train.get(optimize_metric, 0)
-                    test_score = metrics_test.get(optimize_metric, 0)
-                    score = train_score - abs(train_score - test_score) * 0.3
-                    if score > best_score:
-                        best_score = score
-                        best_params = params
+                count += 1
+                
+                params = {
+                    'rsi_oversold': rsi_os,
+                    'rsi_overbought': rsi_ob,
+                    'short_rsi_overbought': short_ob,
+                    'target_mr': 0.03,
+                    'stop_mr': 0.015,
+                    'target_tf': 0.05,
+                    'stop_tf': 0.025,
+                }
+                
+                cfg = {**base_config, **params}
+                
+                result_train = run_backtest(df_train, cfg)
+                metrics_train = calculate_metrics(result_train, cfg)
+                result_test = run_backtest(df_test, cfg)
+                metrics_test = calculate_metrics(result_test, cfg)
+                
+                train_score = metrics_train.get(optimize_metric, 0)
+                test_score = metrics_test.get(optimize_metric, 0)
+                
+                # Penalize overfitting
+                score = train_score - abs(train_score - test_score) * 0.3
+                
+                if score > best_score:
+                    best_score = score
+                    best_params = params.copy()
     
-    progress.empty()
     return best_params, best_score
 
 def plot_comparison(results_before, results_after, config):
@@ -368,10 +395,11 @@ def main():
         
         st.markdown("---")
         st.subheader("Auto-Optimize")
-        opt_method = st.selectbox("Method", ["Optuna", "Grid Search"] if OPTUNA_AVAILABLE else ["Grid Search"])
-        n_trials = st.slider("Trials", 10, 100, 30) if opt_method == "Optuna" else st.slider("Grid Points", 20, 200, 50)
-        optimize_metric = st.selectbox("Optimize For", ['sharpe', 'cagr', 'pf', 'wr'], format_func=lambda x: {'sharpe': 'Sharpe Ratio', 'cagr': 'CAGR %', 'pf': 'Profit Factor', 'wr': 'Win Rate'}[x])
-        train_test_split = st.slider("Train/Test Split %", 50, 95, 80)
+        opt_method = "Grid Search"  # Default to grid for reliability
+        n_trials = st.slider("Trials", 10, 50, 20)  # Reduced
+        optimize_metric = st.selectbox("Optimize For", ['sharpe', 'cagr', 'pf', 'wr'], 
+                                      index=0, format_func=lambda x: {'sharpe': 'Sharpe Ratio', 'cagr': 'CAGR %', 'pf': 'Profit Factor', 'wr': 'Win Rate'}[x])
+        train_test_split = st.slider("Train/Test Split %", 50, 90, 70)
         
         if st.button("Run Auto-Optimize", type="primary"):
             if not symbols: st.error("Select at least one symbol")
@@ -385,10 +413,8 @@ def main():
                         base_config = {'capital': capital, 'fee': 0.001, 'risk_pct': 0.02, 'rsi_oversold': rsi_oversold, 'rsi_overbought': rsi_overbought, 'short_rsi_overbought': short_rsi_ob, 'target_mr': target_mr, 'stop_mr': stop_mr, 'target_tf': target_tf, 'stop_tf': stop_tf, 'max_hold_hours': 8, 'max_position_pct': 0.30, 'bear_short_bias': bear_short_bias}
                         result_base = run_backtest(df, base_config)
                         metrics_base = calculate_metrics(result_base, base_config)
-                        if opt_method == "Optuna" and OPTUNA_AVAILABLE:
-                            best_params, score = optimize_with_optuna(df_train, df_test, base_config, n_trials, optimize_metric)
-                        else:
-                            best_params, score = optimize_grid_search(df_train, df_test, base_config, optimize_metric)
+                        # Use simplified grid search
+                        best_params, score = optimize_grid_search(df_train, df_test, base_config, optimize_metric)
                         if best_params:
                             opt_config = {**base_config, **best_params}
                             result_opt = run_backtest(df, opt_config)
