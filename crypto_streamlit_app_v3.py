@@ -443,8 +443,8 @@ def main():
                             metrics_opt = calculate_metrics(result_opt, opt_config)
                             
                             st.session_state.best_params = best_params
-                            st.session_state.results = {symbols[0]: {'equity': result_base['equity'], 'metrics': metrics_base, 'df': df}}
-                            st.session_state.optimized_results = {symbols[0]: {'equity': result_opt['equity'], 'metrics': metrics_opt, 'df': df}}
+                            st.session_state.results = {symbols[0]: {'equity': result_base['equity'], 'trades': result_base['trades'], 'metrics': metrics_base, 'df': df}}
+                            st.session_state.optimized_results = {symbols[0]: {'equity': result_opt['equity'], 'trades': result_opt['trades'], 'metrics': metrics_opt, 'df': df}}
                             st.success(f"✅ Optimized! Score: {score:.3f}")
                         else: 
                             st.error("Optimization failed")
@@ -460,7 +460,7 @@ def main():
                     if df is not None and len(df) > 100:
                         result = run_backtest(df, config)
                         metrics = calculate_metrics(result, config)
-                        st.session_state.results = {symbols[0]: {'equity': result['equity'], 'metrics': metrics, 'df': df}}
+                        st.session_state.results = {symbols[0]: {'equity': result['equity'], 'trades': result['trades'], 'metrics': metrics, 'df': df}}
                         st.session_state.optimized_results = None
                         st.success(f"✓ {metrics['trades']} trades | WR: {metrics['wr']:.1f}% | Sharpe: {metrics['sharpe']:.2f}")
                     else:
