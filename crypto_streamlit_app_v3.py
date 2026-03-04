@@ -365,7 +365,7 @@ def plot_dashboard(results, chart_key=1):
     st.subheader("Metrics")
     rows = [{'Symbol': s, 'Trades': d['metrics']['trades'], 'WR%': f"{d['metrics']['wr']:.1f}", 'PF': f"{d['metrics']['pf']:.2f}", 'Sharpe': f"{d['metrics']['sharpe']:.2f}", 'CAGR%': f"{d['metrics']['cagr']:.1f}", 'Final$': f"${d['metrics']['final']:,.0f}"} for s, d in results.items()]
     st.dataframe(pd.DataFrame(rows), use_container_width=True)
-    st.download_button("CSV", pd.DataFrame(rows).to_csv(index=False), "metrics.csv", "text/csv")
+    st.download_button("📥 Download CSV", pd.DataFrame(rows).to_csv(index=False), "metrics.csv", "text/csv", key=f"csv_{chart_key}")
 
 def main():
     st.title(f"Crypto Strategy v{VERSION} (Auto-Optimize)")
